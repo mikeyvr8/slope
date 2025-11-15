@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Slope Game (Pure HTML)</title>
+<meta charset="UTF-8">
+<style>
+    html, body {
+        margin: 0;
+        overflow: hidden;
+        background: black;
+    }
+    canvas {
+        display: block;
+    }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let keys = {};
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+let ball = {
+    x: canvas.width / 2,
+    y: 100,
+    radius: 15,
+    vx: 0,
+    vy: 0
+};
+
+let gravity = 0.4;
+let friction = 0.99;
+let speed = 0.4;
+
+let platforms = [];
+function spawnPlatform() {
+    let y = platforms.length === 0 
+        ? canvas.height - 200 
+        : platforms[platforms.length - 1].y - 150;
+
+    let width = Math.random() * 300 + 200;
+    let slope = (Math.random() - 0.5) * 0.7;
+
+    platforms.push({
+        x: Math.random() * (canvas.width - width),
+        y: y,
+        width: width,
+        slope: slope
+    });
+}
+
+for (let i = 0; i < 20; i++) spawnPlatform();
+
+function update() {
+    ball.vy += gravity;
+    ball.vx *= friction;
+
+    if (keys["a"] || keys["ArrowLeft"]) ball.vx -= speed;
+    if (keys["d"] || keys["ArrowRight"]) ball.vx += speed;
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    platforms.forEach(p => {
+        let relativeX = ball.x - p.x;
+        let platformY = p.y + relativeX * p.slope;
+
+        let onPlatform = (
+            relativeX > 0 &&
+            relativeX < p.width &&
+            ball.y + ball.radius > platformY - 5 &&
+            ball.y + ball.radius < platformY + 10
+        );
+
+        if (onPlatform && ball.vy > 0) {
+            ball.y = platformY - ball.radius;
+            ball.vy = -2; 
+        }
+    });
+
+    platforms.forEach(p => p.y += 3);
+    if (platforms[0].y > canvas.height + 50) {
+        platforms.shift();
+        spawnPlatform();
+    }
+
+    if (ball.x < 0) ball.x = canvas.width;
+    if (ball.x > canvas.width) ball.x = 0;
+
+    if (ball.y > canvas.height + 200) {
+        ball.x = canvas.width / 2;
+        ball.y = 100;
+        ball.vx = 0;
+        ball.vy = 0;
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = "#00ff00";
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#2222ff";
+    platforms.forEach(p => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(p.width, p.width * p.slope);
+        ctx.lineTo(p.width, p.width * p.slope + 20);
+        ctx.lineTo(0, 20);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+    });
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
