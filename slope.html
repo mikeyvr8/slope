@@ -1,110 +1,198 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>Neon Slope Clone</title>
-  <style>
+<meta charset="UTF-8">
+<title>3-in-1 Slope Style Game</title>
+<style>
     body { margin: 0; overflow: hidden; background: black; }
-    canvas { display: block; }
-  </style>
+    #ui {
+        position: absolute; 
+        top: 0; left: 0; width: 100%; height: 100%;
+        display: flex; 
+        justify-content: center;
+        align-items: center;
+        flex-direction: column;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        font-family: Arial; 
+        font-size: 24px;
+        z-index: 10;
+    }
+    button {
+        margin: 10px;
+        padding: 15px 30px;
+        font-size: 24px;
+        cursor: pointer;
+        background: #111;
+        color: lime;
+        border: 2px solid lime;
+        border-radius: 10px;
+    }
+</style>
 </head>
 <body>
+
+<div id="ui">
+    <h1>Choose Game Mode</h1>
+    <button onclick="startGame('tunnel')">Neon Tunnel</button>
+    <button onclick="startGame('classic')">Classic Slope Track</button>
+    <button onclick="startGame('hybrid')">Hybrid</button>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r146/three.min.js"></script>
 <script>
-  // Scene, camera, renderer
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(window.innerWidth, window.innerHeight);
-  document.body.appendChild(renderer.domElement);
 
-  // Lights
-  const ambient = new THREE.AmbientLight(0x404040);
-  scene.add(ambient);
-  const point = new THREE.PointLight(0xffffff, 1);
-  point.position.set(0, 5, 0);
-  scene.add(point);
+//--------------------------------------
+// BASIC THREE.JS SETUP
+//--------------------------------------
+let scene, camera, renderer, ball, mode;
+let objects = [];
+let speed = 0.25;
+let lateralSpeed = 0.09;
 
-  // Ball
-  const ballGeometry = new THREE.SphereGeometry(1, 32, 32);
-  const ballMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.5 });
-  const ball = new THREE.Mesh(ballGeometry, ballMaterial);
-  scene.add(ball);
+function startGame(selectedMode) {
+    mode = selectedMode;
+    document.getElementById("ui").style.display = "none";
 
-  // Tunnel geometry: build a series of ring segments
-  const tunnel = new THREE.Group();
-  scene.add(tunnel);
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth/window.innerHeight,
+        0.1,
+        1000
+    );
+    renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
 
-  const ringCount = 100;
-  const ringRadius = 5;
-  const ringThickness = 0.5;
-  const ringSpacing = 1; // distance between rings
+    addLights();
+    addBall();
 
-  for (let i = 0; i < ringCount; i++) {
-    const geometry = new THREE.TorusGeometry(ringRadius, ringThickness, 8, 100);
-    const material = new THREE.MeshBasicMaterial({
-      color: i % 2 === 0 ? 0x00ff00 : 0xff0000,
-      side: THREE.DoubleSide,
+    if (mode === "tunnel") generateTunnel();
+    if (mode === "classic") generateSlope();
+    if (mode === "hybrid") { generateSlope(); generateTunnel(true); }
+
+    animate();
+}
+
+//--------------------------------------
+// LIGHTS
+//--------------------------------------
+function addLights() {
+    const amb = new THREE.AmbientLight(0x404040);
+    scene.add(amb);
+
+    const p = new THREE.PointLight(0xffffff, 1);
+    p.position.set(0, 5, 0);
+    scene.add(p);
+}
+
+//--------------------------------------
+// BALL
+//--------------------------------------
+function addBall() {
+    const geom = new THREE.SphereGeometry(1, 32, 32);
+    const mat = new THREE.MeshStandardMaterial({
+        color: 0x00ff00,
+        emissive: 0x00ff00,
+        emissiveIntensity: 0.7
     });
-    const ring = new THREE.Mesh(geometry, material);
-    ring.rotation.x = Math.PI / 2;
-    ring.position.z = -i * ringSpacing;
-    tunnel.add(ring);
-  }
+    ball = new THREE.Mesh(geom, mat);
+    scene.add(ball);
 
-  // Controls
-  let steer = 0;
-  window.addEventListener("keydown", (e) => {
+    ball.position.set(0, 1, 0);
+    camera.position.set(0, 2, 5);
+}
+
+//--------------------------------------
+// GENERATE CLASSIC SLOPE TRACK (FLAT)
+//--------------------------------------
+function generateSlope() {
+    const geometry = new THREE.BoxGeometry(12, 0.5, 20);
+
+    for (let i = 0; i < 50; i++) {
+        const material = new THREE.MeshBasicMaterial({
+            color: (i % 2 === 0) ? 0x00ff00 : 0xff0000
+        });
+        const platform = new THREE.Mesh(geometry, material);
+        platform.position.z = -i * 20;
+        platform.position.y = -i * 1.2; 
+        objects.push(platform);
+        scene.add(platform);
+    }
+}
+
+//--------------------------------------
+// GENERATE TUNNEL (CYLINDER SECTIONS)
+//--------------------------------------
+function generateTunnel(offset=false) {
+    const radius = 8;
+    const thickness = 0.6;
+
+    for (let i = 0; i < 80; i++) {
+        const geom = new THREE.TorusGeometry(radius, thickness, 8, 100);
+        const mat = new THREE.MeshBasicMaterial({
+            color: (i % 2 === 0) ? 0x00ff00 : 0xff0000,
+            side: THREE.DoubleSide
+        });
+
+        const ring = new THREE.Mesh(geom, mat);
+        ring.rotation.x = Math.PI / 2;
+
+        ring.position.z = -i * 4;
+        if (offset) ring.position.z -= 800;
+
+        ring.position.y = -50;
+
+        objects.push(ring);
+        scene.add(ring);
+    }
+}
+
+//--------------------------------------
+// KEY INPUT
+//--------------------------------------
+let steer = 0;
+window.addEventListener("keydown", e => {
     if (e.key === "a" || e.key === "ArrowLeft") steer = -1;
     if (e.key === "d" || e.key === "ArrowRight") steer = 1;
-  });
-  window.addEventListener("keyup", (e) => {
-    if ((e.key === "a" || e.key === "ArrowLeft") && steer === -1) steer = 0;
-    if ((e.key === "d" || e.key === "ArrowRight") && steer === 1) steer = 0;
-  });
+});
+window.addEventListener("keyup", e => {
+    if (steer === -1 && (e.key === "a" || e.key === "ArrowLeft")) steer = 0;
+    if (steer === 1 && (e.key === "d" || e.key === "ArrowRight")) steer = 0;
+});
 
-  // Game parameters
-  let speed = 0.2;
-  let lateralSpeed = 0.05;
+//--------------------------------------
+// MAIN GAME LOOP
+//--------------------------------------
+function animate() {
+    requestAnimationFrame(animate);
 
-  // Resize
-  window.addEventListener("resize", () => {
+    ball.position.x += steer * lateralSpeed;
+
+    // Move world backward = simulate ball moving forward
+    objects.forEach(obj => {
+        obj.position.z += speed;
+
+        if (obj.position.z > camera.position.z + 10) {
+            obj.position.z -= 2000;
+        }
+    });
+
+    // Camera follows ball
+    camera.position.x = ball.position.x * 0.4;
+    camera.lookAt(ball.position.x, ball.position.y, ball.position.z - 10);
+
+    renderer.render(scene, camera);
+}
+
+window.onresize = () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-  });
+};
 
-  camera.position.z = 2;
-  camera.position.y = 1;
-
-  function animate() {
-    requestAnimationFrame(animate);
-
-    // Move tunnel forward (simulate ball moving forward)
-    tunnel.children.forEach((ring) => {
-      ring.position.z += speed;
-      if (ring.position.z > camera.position.z + 2) {
-        // recycle ring: send it back
-        ring.position.z = tunnel.children[tunnel.children.length - 1].position.z - ringSpacing;
-      }
-    });
-
-    // Steer the ball (move lateral)
-    ball.position.x += steer * lateralSpeed;
-
-    // Boundaries: keep ball inside tunnel radius
-    const maxX = ringRadius - ringThickness - 0.5;
-    if (ball.position.x > maxX) ball.position.x = maxX;
-    if (ball.position.x < -maxX) ball.position.x = -maxX;
-
-    // Make camera follow ball a little
-    camera.position.x = ball.position.x * 0.5;
-    camera.lookAt(ball.position.x, ball.position.y, ball.position.z - 5);
-
-    renderer.render(scene, camera);
-  }
-
-  animate();
 </script>
+
 </body>
 </html>
